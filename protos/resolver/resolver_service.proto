@@ -13,6 +13,11 @@ message ProvisionResponse {
   string machine_ip = 1;
 }
 
+message RegisterDataCenterRequest {}
+
+message RegisterDataCenterResponse {}
+
 service DcnsResolver {
   rpc ProvisionMachine(ProvisionRequest) returns (ProvisionResponse);
+  rpc RegisterDataCenter(RegisterDataCenterRequest) returns (RegisterDataCenterResponse);
 }

@@ -1,6 +1,6 @@
 use dcns_resolver::{
     dcns_resolver_server::{DcnsResolver, DcnsResolverServer},
-    ProvisionRequest, ProvisionResponse,
+    ProvisionRequest, ProvisionResponse, RegisterDataCenterRequest, RegisterDataCenterResponse,
 };
 use tonic::{transport::Server, Request, Response, Status};
 
@@ -15,11 +15,18 @@ struct LocalDcnsResolver {}
 impl DcnsResolver for LocalDcnsResolver {
     async fn provision_machine(
         &self,
-        request: Request<ProvisionRequest>,
+        _request: Request<ProvisionRequest>,
     ) -> Result<Response<ProvisionResponse>, Status> {
         Ok(Response::new(ProvisionResponse {
             machine_ip: String::from("0.0.0.0"),
         }))
+    }
+
+    async fn register_data_center(
+        &self,
+        _request: Request<RegisterDataCenterRequest>,
+    ) -> Result<Response<RegisterDataCenterResponse>, Status> {
+        Ok(Response::new(RegisterDataCenterResponse {}))
     }
 }
 
