@@ -1,0 +1,18 @@
+syntax = "proto3";
+package dcns_resolver;
+
+message ProvisionRequest {
+  // Amount of ram to allocate in megabytes
+  uint32 ram_mb = 1;
+  // Amount of disk to allocate in megabytes
+  uint32 disk_mb = 2;
+}
+
+message ProvisionResponse {
+  // ip of machine to ssh into
+  string machine_ip = 1;
+}
+
+service DcnsResolver {
+  rpc ProvisionMachine(ProvisionRequest) returns (ProvisionResponse);
+}
