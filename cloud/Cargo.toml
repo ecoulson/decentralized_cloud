@@ -1,2 +1,3 @@
 [workspace]
-members = ["data_center", "resolver/client", "resolver/service"]
+
+members = ["data_center", "runtime", "resolver/client", "resolver/service"]

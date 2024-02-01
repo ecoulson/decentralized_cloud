@@ -1,3 +1,4 @@
 ### Runtime
 
-This holds the possible run time logic needed to provision a virtual compute within a datacenter
+This holds the logic for the runtime of an instance within a data center that conforms to the data
+center api.

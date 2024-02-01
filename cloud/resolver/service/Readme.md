@@ -1,3 +1,3 @@
 ### Resolver Service
 
-This project will communicate with data centers to route developer requests
+Resolver service routes commands to data centers that can handle a given developer command
