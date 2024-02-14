@@ -1,23 +1,35 @@
 syntax = "proto3";
-package dcns_resolver;
+package dcns.resolver;
+
+import "data_center/data_center.proto";
+
+message DataCenter {
+  /// Host name of the data center
+  string host_name = 1;
+}
 
 message ProvisionRequest {
-  // Amount of ram to allocate in megabytes
+  /// Amount of ram to allocate in megabytes
   uint32 ram_mb = 1;
-  // Amount of disk to allocate in megabytes
+  /// Amount of disk to allocate in megabytes
   uint32 disk_mb = 2;
+  /// Number of vcpus to allocate
+  uint32 vcpus = 3;
+  /// Host name of the data center to provision the machine in
+  string host_name = 4;
 }
 
 message ProvisionResponse {
-  // ip of machine to ssh into
+  /// ip of machine to ssh into
   string machine_ip = 1;
 }
 
-message RegisterDataCenterRequest {}
+message RegisterDataCenterRequest { string host_name = 1; }
 
-message RegisterDataCenterResponse {}
+message RegisterDataCenterResponse { DataCenter data_center = 1; }
 
 service DcnsResolver {
   rpc ProvisionMachine(ProvisionRequest) returns (ProvisionResponse);
-  rpc RegisterDataCenter(RegisterDataCenterRequest) returns (RegisterDataCenterResponse);
+  rpc RegisterDataCenter(RegisterDataCenterRequest)
+      returns (RegisterDataCenterResponse);
 }

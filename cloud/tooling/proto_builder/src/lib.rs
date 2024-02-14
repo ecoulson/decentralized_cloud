@@ -19,10 +19,9 @@ pub fn build_protos() {
     let root_path = format!("{}{}", &build_directory[0..index], "/protos");
     let proto_paths = find_all_protos(PathBuf::from(&root_path));
 
-    for path in proto_paths {
-        dbg!(&path);
-        tonic_build::compile_protos(path).expect("Should compile successfully");
-    }
+    tonic_build::configure()
+        .compile(&proto_paths, &[root_path])
+        .expect("Should compile protos");
 }
 
 fn find_all_protos(root: PathBuf) -> Vec<PathBuf> {

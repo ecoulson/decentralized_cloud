@@ -1,0 +1,34 @@
+syntax = "proto3";
+package data_center;
+
+message Resources {
+  /// available ram in mb
+  uint32 ram_mb = 1;
+  /// available disk in mb
+  uint32 disk_mb = 2;
+  /// available disk in mb
+  uint32 vcpus = 3;
+}
+
+message CheckResourceRequest {}
+
+message CheckResourceResponse {
+  /// Available resources in the data center
+  Resources available_resources = 1;
+}
+
+message ProvisionMachineRequest {
+  /// Requested resources for ths provisioned request
+  Resources resources = 1;
+}
+
+message ProvisionMachineResponse {
+  /// Ip of the provisioned machine to ssh into
+  string machine_ip = 1;
+}
+
+service DataCenter {
+  rpc CheckResource(CheckResourceRequest) returns (CheckResourceResponse);
+  rpc ProvisionMachine(ProvisionMachineRequest)
+      returns (ProvisionMachineResponse);
+}
