@@ -1,3 +1,9 @@
 [workspace]
-
-members = ["tooling/proto_builder", "data_center", "runtime", "resolver/client", "resolver/service"]
+members = [
+    "tooling/proto_builder", 
+    "data_center/service", 
+    "data_center/client", 
+    "runtime", 
+    "resolver/client", 
+    "resolver/service"
+]

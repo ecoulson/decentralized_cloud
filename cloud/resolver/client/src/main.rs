@@ -1,10 +1,7 @@
-use client::{
-    cli::{
-        parse_cli, Commands, DataCenterArgs, DataCenterCommand, ProvisionCommand,
-        RegisterDataCenterCommand,
-    },
-    protos::dcns_resolver::{
-        dcns_resolver_client::DcnsResolverClient, ProvisionRequest, RegisterDataCenterRequest,
+use resolver_client::{
+    cli::{parse_cli, Commands, RegisterDataCenterCommand},
+    protos::resolver::{
+        dcns_resolver_client::DcnsResolverClient, ListDataCentersRequest, RegisterDataCenterRequest,
     },
 };
 
@@ -13,18 +10,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = parse_cli();
 
     match args.command {
-        Commands::DataCenter(args) => handle_data_center_commands(args).await?,
-        Commands::Provision(provision_command) => provision(provision_command).await?,
-    }
-
-    Ok(())
-}
-
-async fn handle_data_center_commands(
-    args: DataCenterArgs,
-) -> Result<(), Box<dyn std::error::Error>> {
-    match args.command {
-        DataCenterCommand::Register(command) => register_data_center(command).await?,
+        Commands::Register(args) => register_data_center(args).await?,
+        Commands::List => list_data_centers().await?,
     }
 
     Ok(())
@@ -43,20 +30,10 @@ async fn register_data_center(
     Ok(())
 }
 
-async fn provision(command: ProvisionCommand) -> Result<(), Box<dyn std::error::Error>> {
+async fn list_data_centers() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = DcnsResolverClient::connect("http://[::1]:50051").await?;
-
-    let Some(host_name) = command.host_name else {
-        unimplemented!();
-    };
-
-    let request = tonic::Request::new(ProvisionRequest {
-        ram_mb: command.ram_mb,
-        disk_mb: command.disk_mb,
-        vcpus: command.vcpus,
-        host_name,
-    });
-    let response = client.provision_machine(request).await?;
+    let request = tonic::Request::new(ListDataCentersRequest {});
+    let response = client.list_data_centers(request).await?;
     dbg!(response);
 
     Ok(())

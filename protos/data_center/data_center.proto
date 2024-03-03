@@ -27,8 +27,131 @@ message ProvisionMachineResponse {
   string machine_ip = 1;
 }
 
+message GetImageMetadataRequest {
+  /// Id of the image
+  string image_id = 1;
+}
+
+message GetImageMetadataResponse {
+  /// Requested OS image
+  OsImageMetadata image = 1;
+}
+
+message CreateImageMetadataRequest {
+  /// File size of the image
+  uint64 file_size = 1;
+  /// File path local path to the file
+  string destination_file_path = 2;
+}
+
+message CreateImageMetadataResponse {
+  /// Id of the image
+  OsImageMetadata os_image_metadata = 1;
+}
+
+message OsImageMetadata {
+  /// Id of the image
+  string image_id = 1;
+  /// Metadata of the image file
+  FileMetadata file_metadata = 2;
+}
+
+message Chunk {
+  /// Data of the chunk
+  bytes data = 1;
+  /// Start of the chunk in the file
+  uint64 start = 2;
+  /// End of the chunk in the file
+  uint64 end = 3;
+}
+
+enum ServiceType {
+  Storage = 0;
+  Compute = 1;
+  OperatingSystemImages = 2;
+}
+
+message FindServiceRequest {
+  /// Type of service to lookup
+  ServiceType service = 1;
+}
+
+message FindServiceResponse {
+  /// Host name of service
+  string host_name = 1;
+}
+
+message CreateFileMetadataRequest {
+  /// File path the file lives at
+  string file_path = 1;
+  /// File size
+  uint64 file_size = 2;
+}
+
+message CreateFileMetadataResponse {
+  /// metadata about the file
+  FileMetadata metadata = 1;
+}
+
+message FileMetadata {
+  /// Path to file
+  string file_path = 1;
+  /// Size of the file
+  uint64 file_size = 2;
+}
+
+message UploadFileRequest {
+  /// File path to write the chunk to
+  string file_path = 1;
+  /// Chunk
+  Chunk chunk = 2;
+}
+
+message UploadFileResponse {
+  /// Number of bytes written
+  uint64 bytes_written = 1;
+}
+
+message GetFileMetadataRequest {
+  /// File path where file lives
+  string file_path = 1;
+}
+
+message GetFileMetadataResponse {
+  /// Retrieved metadata
+  FileMetadata metadata = 1;
+}
+
+message DownloadFileRequest {
+    /// Source to read file from
+    string source_path = 1;
+}
+
+message DownloadFileResponse {
+    /// Chunk of data to write
+    Chunk chunk = 1;
+}
+
+message ListImageMetadataRequest {
+}
+
+message ListImageMetadataResponse {
+    /// List of os image metadata
+    repeated OsImageMetadata metadata = 1;
+}
+
 service DataCenter {
   rpc CheckResource(CheckResourceRequest) returns (CheckResourceResponse);
   rpc ProvisionMachine(ProvisionMachineRequest)
       returns (ProvisionMachineResponse);
+  rpc CreateImageMetadata(CreateImageMetadataRequest)
+      returns (CreateImageMetadataResponse);
+  rpc GetImageMetadata(GetImageMetadataRequest)
+      returns (GetImageMetadataResponse);
+  rpc CreateFileMetadata(CreateFileMetadataRequest)
+      returns (CreateFileMetadataResponse);
+  rpc UploadFile(stream UploadFileRequest) returns (UploadFileResponse);
+  rpc DownloadFile(DownloadFileRequest) returns (stream DownloadFileResponse);
+  rpc GetFileMetadata(GetFileMetadataRequest) returns (GetFileMetadataResponse);
+  rpc ListImageMetadata(ListImageMetadataRequest) returns (ListImageMetadataResponse);
 }
