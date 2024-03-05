@@ -13,26 +13,64 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
+    Compute(ComputeArguments),
+    Storage(StorageArguments),
+    Os(OperatingSystemArguments),
+}
+
+#[derive(Debug, Args)]
+pub struct ComputeArguments {
+    #[command(subcommand)]
+    pub compute: ComputeCommands,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ComputeCommands {
     ProvisionMachine(ProvisionMachineArguments),
+}
+
+#[derive(Debug, Args)]
+pub struct StorageArguments {
+    #[command(subcommand)]
+    pub storage: StorageCommands,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum StorageCommands {
+    UploadFile(UploadFileArguments),
+    DownloadFile(DownloadFileArguments),
+}
+
+#[derive(Debug, Args)]
+pub struct UploadFileArguments {
+    pub local_file_path: String,
+    pub storage_file_path: String,
+}
+
+#[derive(Debug, Args)]
+pub struct DownloadFileArguments {
+    pub storage_path: String,
+    pub local_path: String,
+}
+
+#[derive(Debug, Args)]
+pub struct OperatingSystemArguments {
+    #[command(subcommand)]
+    pub os: OperatingSystemCommands,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum OperatingSystemCommands {
     UploadImage(UploadImageArguments),
     DownloadImage(DownloadImageArguments),
     GetImageMetadata(GetImageMetadataArguments),
-    CreateImageMetadata(CreateImageMetadataArguments),
-    ListImageMetadata
+    ListImageMetadata,
 }
 
 #[derive(Debug, Args)]
 pub struct GetImageMetadataArguments {
     /// Image id
-    pub image_id: String
-}
-
-#[derive(Debug, Args)]
-pub struct CreateImageMetadataArguments {
-    /// Local path file
-    pub local_file_path: String,
-    /// Storage path
-    pub storage_path: String
+    pub image_id: String,
 }
 
 #[derive(Debug, Args)]
@@ -61,7 +99,7 @@ pub struct DownloadImageArguments {
     /// image id
     pub image_id: String,
     /// Path to write image to
-    pub destination_path: String
+    pub destination_path: String,
 }
 
 pub fn parse_cli() -> Cli {
