@@ -1,9 +1,11 @@
+use core::panic;
 use std::{
     cmp::min,
     collections::HashMap,
     fs::{self, File},
     io::{BufReader, Read},
     ops::Range,
+    process::Stdio,
     sync::Mutex,
 };
 
@@ -11,10 +13,13 @@ use data_center_service::protos::data_center::{
     data_center_server::{DataCenter, DataCenterServer},
     CheckResourceRequest, CheckResourceResponse, Chunk, CreateFileMetadataRequest,
     CreateFileMetadataResponse, CreateImageMetadataRequest, CreateImageMetadataResponse,
-    DownloadFileRequest, DownloadFileResponse, FileMetadata, GetFileMetadataRequest,
-    GetFileMetadataResponse, GetImageMetadataRequest, GetImageMetadataResponse,
-    ListImageMetadataRequest, ListImageMetadataResponse, OsImageMetadata, ProvisionMachineRequest,
-    ProvisionMachineResponse, Resources, UploadFileRequest, UploadFileResponse,
+    CreateMachineRequest, CreateMachineResponse, DownloadFileRequest, DownloadFileResponse,
+    FileMetadata, GetFileMetadataRequest, GetFileMetadataResponse, GetImageMetadataRequest,
+    GetImageMetadataResponse, Instance, InstanceState, ListImageMetadataRequest,
+    ListImageMetadataResponse, ListInstancesRequest, ListInstancesResponse, ListMachinesRequest,
+    ListMachinesResponse, Machine, OsImageMetadata, ProvisionInstanceRequest,
+    ProvisionInstanceResponse, Resources, StartInstanceRequest, StartInstanceResponse,
+    StopInstanceRequest, StopInstanceResponse, UploadFileRequest, UploadFileResponse,
 };
 use nanoid::nanoid;
 use tokio::process::{Child, Command};
@@ -23,7 +28,9 @@ use tonic::{transport::Server, Request, Response, Status, Streaming};
 
 #[derive(Default)]
 struct LocalDataCenter {
-    machines_by_ip: Mutex<HashMap<String, Child>>,
+    machines_by_id: Mutex<HashMap<String, Machine>>,
+    instances_by_instance_id: Mutex<HashMap<String, Instance>>,
+    processes_by_instance_id: Mutex<HashMap<String, Child>>,
     images_by_id: Mutex<HashMap<String, OsImageMetadata>>,
     files_by_path: Mutex<HashMap<String, FileMetadata>>,
 }
@@ -91,38 +98,62 @@ impl DataCenter for LocalDataCenter {
         }))
     }
 
-    async fn provision_machine(
+    async fn create_machine(
         &self,
-        _request: Request<ProvisionMachineRequest>,
-    ) -> Result<Response<ProvisionMachineResponse>, Status> {
-        let process = Command::new("qemu-system-x86_64")
-            .arg("-accel")
-            .arg("hvf")
-            .arg("-cpu")
-            .arg("host,-rdtscp")
-            .arg("-smp")
-            .arg("2")
-            .arg("-m")
-            .arg("4G")
-            .arg("-device")
-            .arg("usb-tablet")
-            .arg("-nographic")
-            .arg("-usb")
-            .arg("-device")
-            .arg("virtio-net,netdev=vmnic")
-            .arg("-netdev")
-            .arg("user,id=vmnic,hostfwd=tcp::9001-:22")
-            .arg("-drive")
-            .arg("file=/Users/evancoulson/isos/ubuntu2004.qcow2,if=virtio")
-            .spawn()
-            .expect("Should start child process");
-        self.machines_by_ip
+        request: Request<CreateMachineRequest>,
+    ) -> Result<Response<CreateMachineResponse>, Status> {
+        let request = request.into_inner();
+        let resources = request.resources.expect("should have resources");
+        let image = self
+            .images_by_id
             .lock()
             .expect("Should acquire lock")
-            .insert(String::from("127.0.0.1"), process);
+            .get(&request.image_id)
+            .expect("Should find image")
+            .clone();
+        let machine_id = nanoid!();
+        let machine = Machine {
+            machine_id: machine_id.clone(),
+            resources: Some(resources),
+            image_metadata: Some(image),
+        };
+        self.machines_by_id
+            .lock()
+            .expect("Should acquire lock")
+            .insert(machine_id, machine.clone());
 
-        Ok(Response::new(ProvisionMachineResponse {
-            machine_ip: String::from("127.0.0.1"),
+        Ok(Response::new(CreateMachineResponse {
+            machine: Some(machine),
+        }))
+    }
+
+    async fn start_instance(
+        &self,
+        request: Request<StartInstanceRequest>,
+    ) -> Result<Response<StartInstanceResponse>, Status> {
+        let request = request.into_inner();
+        let mut instance = self
+            .instances_by_instance_id
+            .lock()
+            .expect("Should acquire lock")
+            .get(&request.instance_id)
+            .expect("Should find instance")
+            .clone();
+        let machine = instance.machine.clone().expect("Machine should exist");
+        let process = self.start_instance_process(&machine);
+        instance.set_state(InstanceState::Started);
+        instance.process_id = String::from(process.id().expect("Should have pid").to_string());
+        self.instances_by_instance_id
+            .lock()
+            .expect("Should acquire lock")
+            .insert(instance.instance_id.clone(), instance.clone());
+        self.processes_by_instance_id
+            .lock()
+            .expect("Should acquire lock")
+            .insert(instance.instance_id.clone(), process);
+
+        Ok(Response::new(StartInstanceResponse {
+            instance: Some(instance),
         }))
     }
 
@@ -134,6 +165,7 @@ impl DataCenter for LocalDataCenter {
         let file_metadata = FileMetadata {
             file_path: request.file_path,
             file_size: request.file_size,
+            version: 0,
         };
 
         self.files_by_path
@@ -162,7 +194,6 @@ impl DataCenter for LocalDataCenter {
             .metadata
             .expect("Should have file metadata");
         let file = File::open(&file_metadata.file_path)?;
-        dbg!(&file_metadata);
 
         tokio::spawn(async move {
             let mut chunk = [0; 4096];
@@ -195,7 +226,7 @@ impl DataCenter for LocalDataCenter {
         request: Request<Streaming<UploadFileRequest>>,
     ) -> Result<Response<UploadFileResponse>, Status> {
         let mut stream = request.into_inner();
-        let mut contents: Vec<u8> = Vec::new();
+        let mut contents: Vec<u8> = Vec::with_capacity(0);
         let mut file_metadata = FileMetadata::default();
 
         while let Some(message) = stream.message().await? {
@@ -259,6 +290,140 @@ impl DataCenter for LocalDataCenter {
             .collect();
 
         Ok(Response::new(ListImageMetadataResponse { metadata }))
+    }
+
+    async fn provision_instance(
+        &self,
+        request: Request<ProvisionInstanceRequest>,
+    ) -> Result<Response<ProvisionInstanceResponse>, Status> {
+        let request = request.into_inner();
+        let machine_table = self.machines_by_id.lock().expect("Should acquire lock");
+        let machine = machine_table
+            .get(&request.machine_id)
+            .expect("Should find machine id");
+        let process = self.start_instance_process(machine);
+        let process_id = process
+            .id()
+            .expect("Process should have a pid while running");
+        let instance = Instance {
+            process_id: process_id.to_string(),
+            instance_id: nanoid!(),
+            ip_address: String::from("192.168.0.1"),
+            machine: Some(machine.clone()),
+            state: InstanceState::Started as i32,
+        };
+        self.instances_by_instance_id
+            .lock()
+            .expect("Should acquire lock")
+            .insert(String::from(&instance.instance_id), instance.clone());
+        self.processes_by_instance_id
+            .lock()
+            .expect("Should acquire lock")
+            .insert(String::from(&instance.instance_id), process);
+
+        Ok(Response::new(ProvisionInstanceResponse {
+            instance: Some(instance),
+        }))
+    }
+
+    async fn stop_instance(
+        &self,
+        request: Request<StopInstanceRequest>,
+    ) -> Result<Response<StopInstanceResponse>, Status> {
+        let request = request.into_inner();
+        let instance = self
+            .instances_by_instance_id
+            .lock()
+            .expect("Should acquire lock")
+            .get(&request.instance_id)
+            .expect("Instance should exist")
+            .clone();
+        self.processes_by_instance_id
+            .lock()
+            .expect("Should acquire lock")
+            .remove(&instance.instance_id);
+        self.instances_by_instance_id
+            .lock()
+            .expect("Should acquire lock")
+            .get_mut(&request.instance_id)
+            .expect("Instance should exist")
+            .set_state(InstanceState::Stopped);
+
+        Ok(Response::new(StopInstanceResponse {}))
+    }
+
+    async fn list_machines(
+        &self,
+        _request: Request<ListMachinesRequest>,
+    ) -> Result<Response<ListMachinesResponse>, Status> {
+        Ok(Response::new(ListMachinesResponse {
+            machine: self
+                .machines_by_id
+                .lock()
+                .expect("Should acquire lock")
+                .values()
+                .map(|machine| machine.clone())
+                .collect(),
+        }))
+    }
+
+    async fn list_instances(
+        &self,
+        _request: Request<ListInstancesRequest>,
+    ) -> Result<Response<ListInstancesResponse>, Status> {
+        Ok(Response::new(ListInstancesResponse {
+            instance: self
+                .instances_by_instance_id
+                .lock()
+                .expect("Should acquire lock")
+                .values()
+                .map(|instance| instance.clone())
+                .collect(),
+        }))
+    }
+}
+
+impl LocalDataCenter {
+    fn start_instance_process(&self, machine: &Machine) -> Child {
+        let Some(image_metadata) = &machine.image_metadata else {
+            panic!("Should have image metadata");
+        };
+        let Some(file_metadata) = &image_metadata.file_metadata else {
+            panic!("Should have file metadata")
+        };
+
+        Command::new("qemu-system-x86_64")
+            .stdout(Stdio::null())
+            .stdin(Stdio::null())
+            .arg("-accel")
+            .arg("hvf")
+            .arg("-cpu")
+            .arg("host,-rdtscp")
+            .arg("-smp")
+            .arg("2")
+            .arg("-m")
+            .arg(format!(
+                "{}G",
+                machine
+                    .resources
+                    .as_ref()
+                    .expect("Should have resources")
+                    .ram_mb
+                    / 1024
+            ))
+            .arg("-device")
+            .arg("usb-tablet")
+            .arg("-nographic")
+            .arg("-usb")
+            .arg("-device")
+            .arg("virtio-net,netdev=vmnic")
+            .arg("-netdev")
+            .arg("user,id=vmnic,hostfwd=tcp::9001-:22")
+            .arg("-drive")
+            .arg(format!("file={},if=virtio", &file_metadata.file_path))
+            .kill_on_drop(true)
+            .spawn()
+            .expect("Should start child process")
     }
 }
 

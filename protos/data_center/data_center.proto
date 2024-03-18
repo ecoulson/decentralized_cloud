@@ -10,6 +10,34 @@ message Resources {
   uint32 vcpus = 3;
 }
 
+/// State of the machine
+enum InstanceState {
+  Stopped = 0;
+  Started = 1;
+}
+
+message Machine {
+  /// Id of the machine
+  string machine_id = 1;
+  /// Image associated with the machine
+  OsImageMetadata image_metadata = 2;
+  /// Required resources for the machine
+  Resources resources = 3;
+}
+
+message Instance {
+  /// Id of the instance
+  string instance_id = 1;
+  /// Machine that instance is based on at creation time
+  Machine machine = 2;
+  /// Id of the process on the host
+  string process_id = 3;
+  /// Ip address of the instance
+  string ip_address = 4;
+  /// Current state of the instance
+  InstanceState state = 5;
+}
+
 message CheckResourceRequest {}
 
 message CheckResourceResponse {
@@ -17,15 +45,24 @@ message CheckResourceResponse {
   Resources available_resources = 1;
 }
 
-message ProvisionMachineRequest {
+message CreateMachineRequest {
   /// Requested resources for ths provisioned request
   Resources resources = 1;
+  /// Id of os image to use
+  string image_id = 2;
 }
 
-message ProvisionMachineResponse {
-  /// Ip of the provisioned machine to ssh into
-  string machine_ip = 1;
+message CreateMachineResponse {
+  /// Created machine
+  Machine machine = 1;
 }
+
+message ProvisionInstanceRequest {
+  /// Id of the machine to provision into an instance
+  string machine_id = 1;
+}
+
+message ProvisionInstanceResponse { Instance instance = 1; }
 
 message GetImageMetadataRequest {
   /// Id of the image
@@ -98,6 +135,8 @@ message FileMetadata {
   string file_path = 1;
   /// Size of the file
   uint64 file_size = 2;
+  /// Version of the file
+  uint32 version = 3;
 }
 
 message UploadFileRequest {
@@ -123,27 +162,57 @@ message GetFileMetadataResponse {
 }
 
 message DownloadFileRequest {
-    /// Source to read file from
-    string source_path = 1;
+  /// Source to read file from
+  string source_path = 1;
 }
 
 message DownloadFileResponse {
-    /// Chunk of data to write
-    Chunk chunk = 1;
+  /// Chunk of data to write
+  Chunk chunk = 1;
 }
 
-message ListImageMetadataRequest {
-}
+message ListImageMetadataRequest {}
 
 message ListImageMetadataResponse {
-    /// List of os image metadata
-    repeated OsImageMetadata metadata = 1;
+  /// List of os image metadata
+  repeated OsImageMetadata metadata = 1;
 }
+
+message StartInstanceRequest {
+  /// Id of the machine to start
+  string instance_id = 1;
+}
+
+message StartInstanceResponse {
+  /// Instance of the started machine
+  Instance instance = 1;
+}
+
+message StopInstanceRequest {
+  /// Id of the instance to stop
+  string instance_id = 1;
+}
+
+message ListMachinesRequest {}
+
+message ListMachinesResponse {
+  /// Machine defined in the data center
+  repeated Machine machine = 1;
+}
+
+message ListInstancesRequest {}
+
+message ListInstancesResponse {
+  /// Instance of a machine defined in the data center
+  repeated Instance instance = 1;
+}
+
+message StopInstanceResponse {}
 
 service DataCenter {
   rpc CheckResource(CheckResourceRequest) returns (CheckResourceResponse);
-  rpc ProvisionMachine(ProvisionMachineRequest)
-      returns (ProvisionMachineResponse);
+  rpc ProvisionInstance(ProvisionInstanceRequest)
+      returns (ProvisionInstanceResponse);
   rpc CreateImageMetadata(CreateImageMetadataRequest)
       returns (CreateImageMetadataResponse);
   rpc GetImageMetadata(GetImageMetadataRequest)
@@ -153,5 +222,11 @@ service DataCenter {
   rpc UploadFile(stream UploadFileRequest) returns (UploadFileResponse);
   rpc DownloadFile(DownloadFileRequest) returns (stream DownloadFileResponse);
   rpc GetFileMetadata(GetFileMetadataRequest) returns (GetFileMetadataResponse);
-  rpc ListImageMetadata(ListImageMetadataRequest) returns (ListImageMetadataResponse);
+  rpc ListImageMetadata(ListImageMetadataRequest)
+      returns (ListImageMetadataResponse);
+  rpc StartInstance(StartInstanceRequest) returns (StartInstanceResponse);
+  rpc StopInstance(StopInstanceRequest) returns (StopInstanceResponse);
+  rpc CreateMachine(CreateMachineRequest) returns (CreateMachineResponse);
+  rpc ListMachines(ListMachinesRequest) returns (ListMachinesResponse);
+  rpc ListInstances(ListInstancesRequest) returns (ListInstancesResponse);
 }

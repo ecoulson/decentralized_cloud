@@ -13,9 +13,37 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Commands {
+    Instance(InstanceArguments),
+    Machine(MachineArguments),
     Compute(ComputeArguments),
     Storage(StorageArguments),
     Os(OperatingSystemArguments),
+}
+
+#[derive(Debug, Args)]
+pub struct InstanceArguments {
+    #[command(subcommand)]
+    pub instance: InstanceCommands,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum InstanceCommands {
+    ProvisionInstance(ProvisionInstanceArguments),
+    StopInstance(StopInstanceArguments),
+    StartInstance(StartInstanceArguments),
+    ListInstances,
+}
+
+#[derive(Debug, Args)]
+pub struct MachineArguments {
+    #[command(subcommand)]
+    pub machine: MachineCommands,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum MachineCommands {
+    CreateMachine(CreateMachineArguments),
+    ListMachines,
 }
 
 #[derive(Debug, Args)]
@@ -26,7 +54,35 @@ pub struct ComputeArguments {
 
 #[derive(Debug, Subcommand)]
 pub enum ComputeCommands {
-    ProvisionMachine(ProvisionMachineArguments),
+    Up(UpArguments),
+}
+
+#[derive(Debug, Args)]
+pub struct UpArguments {
+    #[command(subcommand)]
+    pub up: UpCommands,
+    #[arg(short, long)]
+    pub ram_mb: u32,
+    #[arg(short, long)]
+    pub disk_mb: u32,
+    #[arg(short, long)]
+    pub vcpus: u32,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum UpCommands {
+    LocalImage(UpLocalImageArguments),
+}
+
+#[derive(Debug, Args)]
+pub struct UpLocalImageArguments {
+    pub local_path: String,
+    pub storage_path: String
+}
+
+#[derive(Debug, Args)]
+pub struct StartInstanceArguments {
+    pub instance_id: String,
 }
 
 #[derive(Debug, Args)]
@@ -74,7 +130,20 @@ pub struct GetImageMetadataArguments {
 }
 
 #[derive(Debug, Args)]
-pub struct ProvisionMachineArguments {
+pub struct ProvisionInstanceArguments {
+    /// Machine id
+    pub machine_id: String,
+}
+
+#[derive(Debug, Args)]
+pub struct StopInstanceArguments {
+    pub instance_id: String,
+}
+
+#[derive(Debug, Args)]
+pub struct CreateMachineArguments {
+    /// Image id
+    pub image_id: String,
     /// Ram mb
     pub ram_mb: u32,
     /// Disk mb
